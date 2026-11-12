@@ -523,13 +523,42 @@ class SettingsPage(QWidget):
         danger_row = QWidget()
         danger_layout = QHBoxLayout(danger_row)
         danger_layout.setContentsMargins(0, 0, 0, 0)
+        danger_layout.setSpacing(7)
         danger_layout.addStretch()
+        clear_library = QPushButton("Vaciar biblioteca")
+        clear_library.setProperty("variant", "danger")
+        clear_library.clicked.connect(self._clear_library)
+        danger_layout.addWidget(clear_library)
         reset = QPushButton("Restablecer ajustes")
         reset.setProperty("variant", "danger")
         reset.clicked.connect(self._reset)
         danger_layout.addWidget(reset)
-        layout.addWidget(SettingRow("Volver a los valores de fábrica", "No borra las descargas ni la biblioteca", danger_row))
+        layout.addWidget(
+            SettingRow(
+                "Mantenimiento",
+                "Vaciar la biblioteca no borra los archivos del disco",
+                danger_row,
+            )
+        )
         return card
+
+    def _clear_library(self) -> None:
+        count = self.manager.history.stats().get("count") or 0
+        if not count:
+            self._toast("La biblioteca ya está vacía.", "info")
+            return
+        dialog = ConfirmDialog(
+            "Vaciar la biblioteca",
+            f"Se quitarán {count} registro(s) del historial. Los archivos descargados no se eliminarán del disco.",
+            self,
+            "Vaciar biblioteca",
+            danger=True,
+        )
+        if not dialog.exec():
+            return
+        self.manager.history.clear()
+        self.manager.libraryChanged.emit()
+        self._toast("Biblioteca vaciada. Los archivos se han conservado.", "success")
 
     def _reset(self) -> None:
         dialog = ConfirmDialog(
