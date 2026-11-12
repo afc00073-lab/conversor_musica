@@ -124,7 +124,7 @@ class DownloadManager(QObject):
         self._active: set[str] = set()
         self._paused = False
         self.auto_start = bool(self.config.settings.auto_start)
-        self._manual_start = False
+        self._approved: set[str] = set()
 
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(self.config.settings.concurrency)
@@ -195,6 +195,7 @@ class DownloadManager(QObject):
         job.stage = "En cola" if job.meta_loaded else "Obteniendo información"
         job.speed = 0
         job.eta = 0
+        self._approved.add(job_id)
         self.jobUpdated.emit(job_id)
         if not job.meta_loaded:
             self._enrich(job)
@@ -221,6 +222,7 @@ class DownloadManager(QObject):
             job.status = JobStatus.CANCELLED
             job.stage = "Cancelado"
             job.finished_at = time.time()
+            self._approved.discard(job_id)
             self.jobUpdated.emit(job_id)
             self._emit_stats()
 
@@ -230,6 +232,7 @@ class DownloadManager(QObject):
             return
         self.cancel(job_id)
         self._active.discard(job_id)
+        self._approved.discard(job_id)
         self._workers.pop(job_id, None)
         self._enrich_workers.pop(job_id, None)
         self.jobs.pop(job_id, None)
@@ -255,22 +258,28 @@ class DownloadManager(QObject):
 
     def resume(self) -> None:
         self._paused = False
-        self._manual_start = True
+        self._approve_pending()
         self.pausedChanged.emit(False)
         self.logMessage.emit("info", "Cola reanudada")
         self._pump()
 
     def start_queue(self) -> None:
-        self._manual_start = True
         self._paused = False
+        self._approve_pending()
         self.pausedChanged.emit(False)
         self.logMessage.emit("info", "Iniciando cola")
         self._pump()
 
+    def _approve_pending(self) -> None:
+        """Marca la cola actual para arrancar aunque el autoinicio esté apagado."""
+        self._approved.update(
+            job.id for job in self.jobs.values() if job.status in (JobStatus.QUEUED, JobStatus.PROBING)
+        )
+
     def set_auto_start(self, enabled: bool) -> None:
         self.auto_start = bool(enabled)
         if enabled:
-            self._manual_start = True
+            self._approve_pending()
             self._pump()
 
     def cancel_all(self) -> None:
@@ -353,12 +362,16 @@ class DownloadManager(QObject):
     def _pump(self) -> None:
         if self._paused:
             return
-        if not self.auto_start and not self._manual_start:
-            return
         limit = max(1, self.pool.maxThreadCount())
         while len(self._active) < limit:
             candidate = next(
-                (job for job in self.ordered_jobs() if job.status is JobStatus.QUEUED and job.meta_loaded),
+                (
+                    job
+                    for job in self.ordered_jobs()
+                    if job.status is JobStatus.QUEUED
+                    and job.meta_loaded
+                    and (self.auto_start or job.id in self._approved)
+                ),
                 None,
             )
             if candidate is None:
@@ -409,6 +422,7 @@ class DownloadManager(QObject):
 
     def _finalize(self, job: Job) -> None:
         self._active.discard(job.id)
+        self._approved.discard(job.id)
         self._workers.pop(job.id, None)
 
     def _on_finished(self, job_id: str, result: dict) -> None:

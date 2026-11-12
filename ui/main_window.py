@@ -15,6 +15,7 @@ from PySide6.QtGui import (
     QShortcut,
 )
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QApplication,
     QButtonGroup,
     QFrame,
@@ -569,7 +570,8 @@ class MainWindow(QMainWindow):
             self.toast("No hay descargas fallidas.", "info")
 
     def _shortcut_space(self) -> None:
-        if self._text_focus() is not None:
+        focus = QApplication.focusWidget()
+        if isinstance(focus, (QLineEdit, QTextEdit, QAbstractButton)):
             return
         self.manager.toggle_pause()
 
