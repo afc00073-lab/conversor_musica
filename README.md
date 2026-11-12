@@ -194,7 +194,9 @@ conversor_musica/
 │   └── pages/              # Conversor, biblioteca, registro, ajustes, acerca de
 ├── scripts/
 │   └── install_desktop.sh  # Lanzador para el menú de Linux
-└── docs/screenshots/       # Capturas para la documentación
+├── tests/                  # Pruebas del núcleo con unittest
+├── docs/screenshots/       # Capturas para la documentación
+└── .github/workflows/      # Integración continua
 ```
 
 ---
@@ -211,7 +213,16 @@ conversor_musica/
 - Probado en Linux con Python 3.14, PySide6 6.12, yt-dlp 2026.10.26 y
   FFmpeg 9.0.2.
 
-### Comprobar que todo arranca sin pantalla
+### Desarrollo y pruebas
+
+Las pruebas del núcleo no necesitan Qt, red ni archivos multimedia:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -t . -v
+```
+
+GitHub Actions las ejecuta en Python 3.10, 3.12 y 3.14. También puedes
+comprobar que la interfaz arranca sin pantalla:
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python main.py
