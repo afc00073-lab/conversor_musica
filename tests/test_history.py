@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from core.history import HistoryStore
 from core.models import DownloadOptions, Job
@@ -28,6 +30,16 @@ class HistoryStoreTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        self.env = mock.patch.dict(
+            os.environ,
+            {
+                "XDG_CONFIG_HOME": str(Path(self.temp.name) / "config"),
+                "XDG_DATA_HOME": str(Path(self.temp.name) / "data"),
+                "XDG_CACHE_HOME": str(Path(self.temp.name) / "cache"),
+            },
+        )
+        self.env.start()
+        self.addCleanup(self.env.stop)
         self.store = HistoryStore(path=Path(self.temp.name) / "history.db")
         self.addCleanup(self.store.close)
 
