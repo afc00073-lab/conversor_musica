@@ -26,8 +26,8 @@ class PlaylistDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Seleccionar elementos de la lista")
         self.setModal(True)
-        self.setMinimumSize(680, 580)
-        self.resize(720, 620)
+        self.setMinimumSize(720, 560)
+        self.resize(780, 640)
         self.entries = info.get("entries") or []
         self._selected_count = 0
 

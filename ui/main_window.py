@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(f"{APP_NAME} — Conversor de música y vídeo")
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setMinimumSize(1080, 700)
+        self.setMinimumSize(1180, 700)
         self.resize(1320, 850)
         self._restore_geometry()
 

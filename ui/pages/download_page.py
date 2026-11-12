@@ -407,9 +407,26 @@ class DownloadPage(QWidget):
         self._select_format(self._fmt, persist=False)
         self._update_empty_state()
         self._on_stats({})
+        self._update_responsive()
 
         for job in self.manager.ordered_jobs():
             self._on_job_added(job.id)
+
+    # ------------------------------------------------------------ responsivo
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._update_responsive()
+
+    def _update_responsive(self) -> None:
+        """Oculta métricas secundarias cuando la columna se queda estrecha."""
+        if not hasattr(self, "status_bar") or not hasattr(self, "eta_box"):
+            return
+        width = self.status_bar.width()
+        if width <= 0:
+            return
+        self.eta_box.setVisible(width >= 660)
+        self.size_box.setVisible(width >= 610)
+        self.count_label.setVisible(width >= 560)
 
     # ------------------------------------------------------------ construcción
     def _build_input_bar(self) -> QFrame:
@@ -486,6 +503,7 @@ class DownloadPage(QWidget):
         bar = QFrame()
         bar.setObjectName("Card")
         bar.setFixedHeight(82)
+        self.status_bar = bar
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(16, 11, 14, 11)
         layout.setSpacing(12)
@@ -506,9 +524,9 @@ class DownloadPage(QWidget):
         progress_col.addWidget(self.overall_bar)
         layout.addLayout(progress_col, 1)
 
-        self.speed_label = self._stat_widget(layout, "zap", "—", 76)
-        self.eta_label = self._stat_widget(layout, "clock", "—", 88)
-        self.size_label = self._stat_widget(layout, "bar-chart", "0 B", 64)
+        self.speed_box, self.speed_label = self._stat_widget(layout, "zap", "—", 76)
+        self.eta_box, self.eta_label = self._stat_widget(layout, "clock", "—", 88)
+        self.size_box, self.size_label = self._stat_widget(layout, "bar-chart", "0 B", 64)
 
         self.cancel_all_button = icon_button("cloud-off", "Cancelar todas las descargas", theme().muted, 18)
         self.cancel_all_button.clicked.connect(self._cancel_all)
@@ -522,7 +540,7 @@ class DownloadPage(QWidget):
         layout.addWidget(self.pause_button)
         return bar
 
-    def _stat_widget(self, layout: QHBoxLayout, icon_name: str, text: str, width: int = 0) -> QLabel:
+    def _stat_widget(self, layout: QHBoxLayout, icon_name: str, text: str, width: int = 0) -> tuple[QWidget, QLabel]:
         box = QWidget()
         if width:
             box.setFixedWidth(width)
@@ -536,7 +554,7 @@ class DownloadPage(QWidget):
         label.setObjectName("MutedSmall")
         row.addWidget(label, 1)
         layout.addWidget(box)
-        return label
+        return box, label
 
     def _build_side_panel(self) -> QScrollArea:
         settings = self.config.settings

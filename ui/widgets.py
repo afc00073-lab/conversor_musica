@@ -299,7 +299,9 @@ class DropZone(QFrame):
         self._subtitle.setObjectName("Muted")
         self._subtitle.setWordWrap(True)
 
-        chips = QHBoxLayout()
+        self._chips = QWidget()
+        chips = QHBoxLayout(self._chips)
+        chips.setContentsMargins(0, 0, 0, 0)
         chips.setSpacing(6)
         for text in ("MP3 · 320 kbps", "MP4 · hasta 4K", "Playlists", "Portada + metadatos"):
             chip = QLabel(text)
@@ -309,13 +311,19 @@ class DropZone(QFrame):
         text_col.addWidget(self._title)
         text_col.addWidget(self._subtitle)
         text_col.addSpacing(5)
-        text_col.addLayout(chips)
+        text_col.addWidget(self._chips)
         layout.addLayout(text_col, 1)
 
-        hint = QLabel("Suelta aquí")
-        hint.setObjectName("AccentText")
-        layout.addWidget(hint, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        self._hint = QLabel("Suelta aquí")
+        self._hint.setObjectName("AccentText")
+        layout.addWidget(self._hint, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         self._refresh_icon()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        width = self.width()
+        self._hint.setVisible(width >= 600)
+        self._chips.setVisible(width >= 480)
 
     def _refresh_icon(self) -> None:
         color = theme().accent if (self._dragging or self._hover) else theme().muted
