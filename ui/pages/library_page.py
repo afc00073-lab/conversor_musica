@@ -8,12 +8,14 @@ from typing import Callable
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -105,8 +107,37 @@ class LibraryCard(QFrame):
             meta.setText(meta.text() + "  ·  archivo no encontrado")
             meta.setObjectName("WarningText")
 
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_menu)
         self._update_favorite_icon()
         self._refresh_thumb()
+
+    def _show_menu(self, pos) -> None:
+        menu = QMenu(self)
+        filepath = self.entry.get("filepath") or ""
+        url = self.entry.get("url") or ""
+
+        def add(text: str, slot, icon_name: str = "", color: str = "") -> None:
+            action = menu.addAction(make_icon(icon_name, color or theme().muted, 15), text) if icon_name else menu.addAction(text)
+            action.triggered.connect(slot)
+
+        if self.play.isEnabled():
+            add("Reproducir archivo", lambda: self.playRequested.emit(self.entry_id), "play", theme().success)
+        if filepath:
+            add("Abrir carpeta", lambda: self.folderRequested.emit(self.entry_id), "folder-open")
+            add("Copiar ruta del archivo", lambda: QApplication.clipboard().setText(filepath))
+        if url:
+            add("Copiar enlace original", lambda: QApplication.clipboard().setText(url), "link")
+        menu.addSeparator()
+        favorite = bool(self.entry.get("favorite"))
+        add(
+            "Quitar de favoritos" if favorite else "Añadir a favoritos",
+            lambda: self.favoriteRequested.emit(self.entry_id, not favorite),
+            "heart",
+            theme().accent if favorite else "",
+        )
+        add("Eliminar de la biblioteca", lambda: self.deleteRequested.emit(self.entry_id), "trash", theme().error)
+        menu.exec(self.mapToGlobal(pos))
 
     def _refresh_thumb(self) -> None:
         url = self.entry.get("thumbnail") or ""

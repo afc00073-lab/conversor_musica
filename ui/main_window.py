@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setMinimumSize(1180, 700)
         self.resize(1320, 850)
+        self.setAcceptDrops(True)
         self._restore_geometry()
 
         self._apply_theme(rebuild=False)
@@ -474,12 +475,18 @@ class MainWindow(QMainWindow):
         new_action.triggered.connect(self._new_download)
         self.tray_pause_action = QAction("Pausar cola", self)
         self.tray_pause_action.triggered.connect(self._tray_toggle_queue)
+        library_action = QAction("Abrir biblioteca", self)
+        library_action.triggered.connect(lambda: (self._show_window(), self._navigate("library")))
+        folder_action = QAction("Abrir carpeta de descargas", self)
+        folder_action.triggered.connect(lambda: open_in_file_manager(self.config.settings.outdir))
         settings_action = QAction("Ajustes", self)
         settings_action.triggered.connect(lambda: (self._show_window(), self._navigate("settings")))
         quit_action = QAction("Salir", self)
         quit_action.triggered.connect(self._quit_app)
         self.tray_menu.addAction(show_action)
         self.tray_menu.addAction(new_action)
+        self.tray_menu.addAction(library_action)
+        self.tray_menu.addAction(folder_action)
         self.tray_menu.addSeparator()
         self.tray_menu.addAction(self.tray_pause_action)
         self.tray_menu.addAction(settings_action)
@@ -487,6 +494,7 @@ class MainWindow(QMainWindow):
         self.tray_menu.addAction(quit_action)
         self.tray.setContextMenu(self.tray_menu)
         self.tray.activated.connect(self._tray_activated)
+        self.tray.messageClicked.connect(self._show_window)
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.tray.show()
 
@@ -583,6 +591,38 @@ class MainWindow(QMainWindow):
             added = page.add_from_text(text)
             if added:
                 self.toast("Enlace detectado en el portapapeles y añadido a la cola.", "info", "Portapapeles")
+
+    # -------------------------------------------------------------- arrastrar
+    def dragEnterEvent(self, event) -> None:  # noqa: N802
+        mime = event.mimeData()
+        if mime.hasUrls() or mime.hasText():
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802
+        mime = event.mimeData()
+        if mime.hasUrls() or mime.hasText():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:  # noqa: N802
+        mime = event.mimeData()
+        page = self._pages.get("download")
+        if not isinstance(page, DownloadPage):
+            return
+        handled = False
+        if mime.hasUrls():
+            paths = [url.toLocalFile() for url in mime.urls() if url.isLocalFile()]
+            remote = [url.toString() for url in mime.urls() if not url.isLocalFile()]
+            if paths:
+                page.add_files(paths)
+                handled = True
+            if remote:
+                handled = page.add_from_text("\n".join(remote)) or handled
+        if not handled and mime.hasText():
+            handled = page.add_from_text(mime.text())
+        if handled:
+            self._show_window()
+            self._navigate("download")
+            event.acceptProposedAction()
 
     # -------------------------------------------------------------- ventana
     def toast(self, message: str, kind: str = "info", title: str = "") -> None:

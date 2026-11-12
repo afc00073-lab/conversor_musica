@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -196,7 +197,33 @@ class JobCard(QFrame):
         self.btn_folder.clicked.connect(lambda: self.folderRequested.emit(self.job_id))
         self.btn_play.clicked.connect(lambda: self.playRequested.emit(self.job_id))
 
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_menu)
         self.update_from(job)
+
+    def _show_menu(self, pos) -> None:
+        menu = QMenu(self)
+        job = self.job
+
+        def add(text: str, slot, icon_name: str = "", color: str = "") -> None:
+            action = menu.addAction(make_icon(icon_name, color or theme().muted, 15), text) if icon_name else menu.addAction(text)
+            action.triggered.connect(slot)
+
+        if job.status is JobStatus.DONE:
+            add("Reproducir archivo", lambda: self.playRequested.emit(self.job_id), "play", theme().success)
+            if job.filepath:
+                add("Abrir carpeta", lambda: self.folderRequested.emit(self.job_id), "folder-open")
+                add("Copiar ruta del archivo", lambda: QApplication.clipboard().setText(job.filepath))
+        if job.status in (JobStatus.QUEUED, JobStatus.PROBING, JobStatus.DOWNLOADING, JobStatus.PROCESSING):
+            add("Cancelar descarga", lambda: self.cancelRequested.emit(self.job_id), "x")
+        if job.status in (JobStatus.ERROR, JobStatus.CANCELLED):
+            add("Reintentar", lambda: self.retryRequested.emit(self.job_id), "refresh", theme().accent)
+        if menu.actions():
+            menu.addSeparator()
+        add("Copiar enlace", lambda: QApplication.clipboard().setText(job.url))
+        if job.status.is_finished:
+            add("Quitar de la cola", lambda: self.removeRequested.emit(self.job_id), "trash", theme().error)
+        menu.exec(self.mapToGlobal(pos))
 
     def set_thumbnail(self, pixmap: QPixmap) -> None:
         if pixmap.isNull():

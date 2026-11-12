@@ -14,16 +14,17 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.config import APP_NAME, APP_VERSION  # noqa: E402
 from ui.main_window import MainWindow  # noqa: E402
 from ui.theme import preferred_font  # noqa: E402
 
 
 def main() -> int:
     app = QApplication(sys.argv)
-    app.setApplicationName("Sonora")
-    app.setApplicationDisplayName("Sonora")
-    app.setApplicationVersion("1.0.0")
-    app.setOrganizationName("Sonora")
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
+    app.setOrganizationName(APP_NAME)
     app.setDesktopFileName("sonora")
     app.setStyle("Fusion")
     app.setFont(preferred_font())
