@@ -1,0 +1,30 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Datos locales
+*.db
+*.sqlite3
+.cache/
+logs/
+descargas/
+downloads/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.swp
+
+# Build
+build/
+dist/
+*.spec
