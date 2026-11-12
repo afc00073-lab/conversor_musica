@@ -123,6 +123,8 @@ class DownloadManager(QObject):
         self._workers: dict[str, _DownloadWorker] = {}
         self._active: set[str] = set()
         self._paused = False
+        self.auto_start = bool(self.config.settings.auto_start)
+        self._manual_start = False
 
         self.pool = QThreadPool(self)
         self.pool.setMaxThreadCount(self.config.settings.concurrency)
@@ -142,7 +144,7 @@ class DownloadManager(QObject):
         urls = extract_urls(text)
         return self.add_job_urls(urls, options)
 
-    def add_job_urls(self, urls: list[str], options: DownloadOptions) -> list[Job]:
+    def add_job_urls(self, urls: list[str], options: DownloadOptions, enrich: bool = True) -> list[Job]:
         created: list[Job] = []
         for url in urls:
             url = (url or "").strip()
@@ -157,7 +159,8 @@ class DownloadManager(QObject):
             self._order.append(job.id)
             created.append(job)
             self.jobAdded.emit(job.id)
-            self._enrich(job)
+            if enrich:
+                self._enrich(job)
         if created:
             self.logMessage.emit("info", f"{len(created)} enlace(s) añadidos a la cola")
             self._emit_stats()
@@ -166,14 +169,20 @@ class DownloadManager(QObject):
 
     def add_playlist_entries(self, entries: list[dict], options: DownloadOptions) -> list[Job]:
         urls = [entry.get("url", "") for entry in entries if entry.get("url")]
-        jobs = self.add_job_urls(urls, options)
+        jobs = self.add_job_urls(urls, options, enrich=False)
         for job, entry in zip(jobs, entries):
             job.title = entry.get("title") or job.title
             job.uploader = entry.get("uploader") or job.uploader
             job.duration = entry.get("duration") or 0
             job.thumbnail_url = entry.get("thumbnail") or ""
-            if job.title:
-                self.jobUpdated.emit(job.id)
+            job.meta_loaded = True
+            if job.status is JobStatus.PROBING:
+                job.status = JobStatus.QUEUED
+                job.stage = "En cola"
+            self.jobUpdated.emit(job.id)
+        if jobs:
+            self._emit_stats()
+            self._pump()
         return jobs
 
     def retry(self, job_id: str) -> None:
@@ -246,9 +255,28 @@ class DownloadManager(QObject):
 
     def resume(self) -> None:
         self._paused = False
+        self._manual_start = True
         self.pausedChanged.emit(False)
         self.logMessage.emit("info", "Cola reanudada")
         self._pump()
+
+    def start_queue(self) -> None:
+        self._manual_start = True
+        self._paused = False
+        self.pausedChanged.emit(False)
+        self.logMessage.emit("info", "Iniciando cola")
+        self._pump()
+
+    def set_auto_start(self, enabled: bool) -> None:
+        self.auto_start = bool(enabled)
+        if enabled:
+            self._manual_start = True
+            self._pump()
+
+    def cancel_all(self) -> None:
+        for job in list(self.jobs.values()):
+            if job.status in (JobStatus.QUEUED, JobStatus.PROBING, JobStatus.DOWNLOADING, JobStatus.PROCESSING):
+                self.cancel(job.id)
 
     def toggle_pause(self) -> bool:
         if self._paused:
@@ -324,6 +352,8 @@ class DownloadManager(QObject):
 
     def _pump(self) -> None:
         if self._paused:
+            return
+        if not self.auto_start and not self._manual_start:
             return
         limit = max(1, self.pool.maxThreadCount())
         while len(self._active) < limit:
